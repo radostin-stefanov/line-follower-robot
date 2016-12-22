@@ -4,16 +4,19 @@
 // The OLED Display
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0 | U8G_I2C_OPT_NO_ACK | U8G_I2C_OPT_FAST); // Fast I2C / TWI
 
+#define MAX_SPEED 180
+#define BASE_SPEED 130
+
 //Kp 1
 //Kd 17
 //250 max
 //200 base
-#define Kp                1  // experiment to determine this, start by something small that just makes your bot follow the line at a slow speed
-#define Kd                17  // experiment to determine this, slowly increase the speeds and adjust this value. ( Note: Kp < Kd) 
-#define rightMaxSpeed   180  // max speed of the robot
-#define leftMaxSpeed    180  // max speed of the robot
-#define rightBaseSpeed  130  // this is the speed at which the motors should spin when the robot is perfectly on the line
-#define leftBaseSpeed   130  // this is the speed at which the motors should spin when the robot is perfectly on the line
+int Kp = 1;  // experiment to determine this, start by something small that just makes your bot follow the line at a slow speed
+int Kd = 17;  // experiment to determine this, slowly increase the speeds and adjust this value. ( Note: Kp < Kd) 
+int rightMaxSpeed = MAX_SPEED ; // max speed of the robot
+int leftMaxSpeed = MAX_SPEED;  // max speed of the robot
+int rightBaseSpeed = BASE_SPEED;  // this is the speed at which the motors should spin when the robot is perfectly on the line
+int leftBaseSpeed = BASE_SPEED;  // this is the speed at which the motors should spin when the robot is perfectly on the line
 
 #define NUM_SENSORS       6  // number of sensors used
 #define TIMEOUT         2500 // waits for 2500 us for sensor outputs to go low
@@ -42,6 +45,12 @@ uint8_t uiKeyCodeFirst = KEY_NONE;
 uint8_t uiKeyCodeSecond = KEY_NONE;
 uint8_t uiKeyCode = KEY_NONE;
 
+int lastError = 0;
+int leftMotorSpeed = 0;
+int rightMotorSpeed = 0;
+
+bool doneCalibrating = false;
+
 //QTRSensorsRC qtrrc((unsigned char[]) {A1, A2, A3, A4, A5, 6} , NUM_SENSORS, TIMEOUT, EMITTER_PIN);
 
 unsigned int sensorValues[NUM_SENSORS];
@@ -55,12 +64,19 @@ const char *titles[PAGES] = {
   "PID",
   "Speed"
 };
+
+#define CALIBRATING "Calibrating..."
+#define KP "Kp = "
+#define KD "Kd = "
+#define LSPEED "LSpeed = "
+#define RSPEED "RSpeed = "
+
 const char *menu_strings[PAGES][MENU_ITEMS] = {
   { "Start", "Calibration", "PID", "Speed" },
   { "Started", "", "", "" },
-  { "Calibrating...", "", "", "" },
-  { "My PID is", "", "", "" },
-  { "My speed is", "", "", "" } };
+  { CALIBRATING, "", "", "" },
+  { KP, KD, "", "" },
+  { LSPEED, RSPEED, "", "" } };
 uint8_t page_current = 0;
 uint8_t menu_current = 0;
 uint8_t menu_redraw_required = 0;
@@ -102,6 +118,7 @@ void setup()
   //u8g.setRot180();
   uiSetup();                    // setup key detection and debounce algorithm
   menu_redraw_required = 1;     // force initial redraw
+  u8g.setHiColorByRGB(255,255,255);
 }
 
 void uiSetup(void) {
@@ -138,6 +155,11 @@ void drawHeader(void) {
   u8g.drawStr((u8g.getWidth() - u8g.getStrWidth(titles[page_current])) / 2, 10, titles[page_current]);
 }
 
+char drawMenuPlaceholder[32]; // 32 chars is more than enough.
+char drawMenuNumberPlaceholder[16]; // Here numbers are prepared.
+bool writeMode = false;
+bool parameter = false;
+
 void drawMenu(void) {
   uint8_t i, h;
   u8g_uint_t w, d;
@@ -148,13 +170,48 @@ void drawMenu(void) {
   h = u8g.getFontAscent() - u8g.getFontDescent();
   w = u8g.getWidth();
   for ( i = 0; i < MENU_ITEMS; i++ ) {
-    d = (w - u8g.getStrWidth(menu_strings[page_current][i])) / 2;
+    const char* menu_item = menu_strings[page_current][i];
+    bool param = false;
+    if (strcmp(menu_item, CALIBRATING) == 0) {
+      if (doneCalibrating) {
+        menu_item = "Done.";
+      }
+    }
+    else if (strcmp(menu_item, KP) == 0) {
+      sprintf(drawMenuNumberPlaceholder, "%d", Kp);
+      strcpy(drawMenuPlaceholder, menu_item);
+      menu_item = strcat(drawMenuPlaceholder, drawMenuNumberPlaceholder);
+      param = true;
+    }
+    else if (strcmp(menu_item, KD) == 0) {
+      sprintf(drawMenuNumberPlaceholder, "%d", Kd);
+      strcpy(drawMenuPlaceholder, menu_item);
+      menu_item = strcat(drawMenuPlaceholder, drawMenuNumberPlaceholder);
+      param = true;
+    }
+    else if (strcmp(menu_item, LSPEED) == 0) {
+      sprintf(drawMenuNumberPlaceholder, "%d", leftMotorSpeed);
+      strcpy(drawMenuPlaceholder, menu_item);
+      menu_item = strcat(drawMenuPlaceholder, drawMenuNumberPlaceholder);
+      param = true;
+    }
+    else if (strcmp(menu_item, RSPEED) == 0) {
+      sprintf(drawMenuNumberPlaceholder, "%d", rightMotorSpeed);
+      strcpy(drawMenuPlaceholder, menu_item);
+      menu_item = strcat(drawMenuPlaceholder, drawMenuNumberPlaceholder);
+      param = true;
+    }
+    d = (w - u8g.getStrWidth(menu_item)) / 2;
     u8g.setDefaultForegroundColor();
     if ( i == menu_current ) {
       u8g.drawBox(0, 15 + (i * h + 1), w, h);
       u8g.setDefaultBackgroundColor();
+      parameter = param;
     }
-    u8g.drawStr(d, 15 + (i * h), menu_strings[page_current][i]);
+    u8g.drawStr(d, 15 + (i * h), menu_item);
+    if (writeMode && i == menu_current) {
+      u8g.drawStr(d + 1, 15 + (i * h), menu_item);
+    }
   }
 }
 
@@ -166,35 +223,90 @@ void updateMenu(void) {
 
   switch ( uiKeyCode ) {
     case KEY_NEXT:
-      menu_current++;
-      if ( menu_current >= MENU_ITEMS )
-        menu_current = MENU_ITEMS-1;
-      if ( strlen(menu_strings[page_current][menu_current]) == 0 )
-        menu_current--;
-      menu_redraw_required = 1;
+      if ( writeMode ) {
+        if ( page_current == 3 && menu_current == 0) { // Kp
+          Kp--;
+          if (Kp < 1)
+            Kp = 1;
+        }
+        else if ( page_current == 3 && menu_current == 1) { // Kd
+          Kd--;
+          if (Kd < 1)
+            Kd = 1;
+        }
+        else if ( page_current == 4 && menu_current == 0) { // LSpeed
+          leftMotorSpeed--;
+          if (leftMotorSpeed < 0)
+            leftMotorSpeed = 0;
+        }
+        else if ( page_current == 4 && menu_current == 1) { // RSpeed
+          rightMotorSpeed--;
+          if (rightMotorSpeed < 0)
+            rightMotorSpeed = 0;
+        }
+        menu_redraw_required = 1;
+      }
+      else {
+        menu_current++;
+        if ( menu_current >= MENU_ITEMS )
+          menu_current = MENU_ITEMS-1;
+        if ( strlen(menu_strings[page_current][menu_current]) == 0 )
+          menu_current--;
+        menu_redraw_required = 1;
+      }
       break;
     case KEY_PREV:
-      if ( menu_current > 0 )
+      if ( writeMode ) {
+        if ( page_current == 3 && menu_current == 0) { // Kp
+          Kp++;
+        }
+        else if ( page_current == 3 && menu_current == 1) { // Kd
+          Kd++;
+        }
+        else if ( page_current == 4 && menu_current == 0) { // LSpeed
+          leftMotorSpeed++;
+          if (leftMotorSpeed >= leftMaxSpeed)
+            leftMotorSpeed = leftMaxSpeed;
+        }
+        else if ( page_current == 4 && menu_current == 1) { // RSpeed
+          rightMotorSpeed++;
+          if (rightMotorSpeed >= rightMaxSpeed)
+            rightMotorSpeed = rightMaxSpeed;
+        }
+        menu_redraw_required = 1;
+      }
+      else if ( menu_current > 0 ) {
         menu_current--;
-      menu_redraw_required = 1;
+        menu_redraw_required = 1;
+      }
       break;
     case KEY_SELECT:
-      if ( page_current == 0 )
+      if ( page_current == 0 ) {
         page_current = menu_current + 1;
-      menu_current = 0;
-      menu_redraw_required = 1;
+        menu_current = 0;
+        menu_redraw_required = 1;
+        writeMode = false;
+      }
+      else {
+        writeMode = parameter;
+        menu_redraw_required = 1;
+      }
       break;
     case KEY_BACK:
-      menu_current = page_current - 1;
-      page_current = 0;
-      menu_redraw_required = 1;
+      if ( writeMode ) {
+        writeMode = false;
+        menu_redraw_required = 1;
+      }
+      else if (page_current > 0) {
+        menu_current = page_current - 1;
+        page_current = 0;
+        menu_redraw_required = 1;
+        writeMode = false;
+      }
       break;
   }
 }
 
-int lastError = 0;
-int leftMotorSpeed = 0;
-int rightMotorSpeed = 0;
 void loop()
 {
 // !!!!!!!! QTRSensors.h is missing !!!!!!!!
