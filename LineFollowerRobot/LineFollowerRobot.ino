@@ -1,5 +1,6 @@
 //#include <QTRSensors.h>
 #include "U8glib.h"
+#include <avr/eeprom.h>
 
 // The OLED Display
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0 | U8G_I2C_OPT_NO_ACK | U8G_I2C_OPT_FAST); // Fast I2C / TWI
@@ -17,6 +18,8 @@ int rightMaxSpeed = MAX_SPEED ; // max speed of the robot
 int leftMaxSpeed = MAX_SPEED;  // max speed of the robot
 int rightBaseSpeed = BASE_SPEED;  // this is the speed at which the motors should spin when the robot is perfectly on the line
 int leftBaseSpeed = BASE_SPEED;  // this is the speed at which the motors should spin when the robot is perfectly on the line
+
+int parameters[] = { Kp, Kd, 0, 0 };
 
 #define NUM_SENSORS       6  // number of sensors used
 #define TIMEOUT         2500 // waits for 2500 us for sensor outputs to go low
@@ -113,7 +116,18 @@ void setup()
     Serial.print(' ');
   }
   Serial.println();
-  
+
+  // Read Kd, Kp, LSpeed and RSpeed from EEPROM
+  eeprom_read_block((void*)&parameters, (void*)0, sizeof(parameters));
+  if (parameters[0] > 0)
+    Kp = parameters[0];
+  if (parameters[1] > 0)
+    Kd = parameters[1];
+  if (parameters[2] > 0)
+    leftMotorSpeed = parameters[2];
+  if (parameters[3] > 0)
+    rightMotorSpeed = parameters[3];
+
   // rotate screen, if required
   //u8g.setRot180();
   uiSetup();                    // setup key detection and debounce algorithm
@@ -294,6 +308,13 @@ void updateMenu(void) {
       break;
     case KEY_BACK:
       if ( writeMode ) {
+        // Store Kd, Kp, LSpeed and RSpeed in EEPROM
+        parameters[0] = Kp;
+        parameters[1] = Kd;
+        parameters[2] = leftMotorSpeed;
+        parameters[3] = rightMotorSpeed;
+        eeprom_write_block((void*)&parameters, (void*)0, sizeof(parameters));
+
         writeMode = false;
         menu_redraw_required = 1;
       }
