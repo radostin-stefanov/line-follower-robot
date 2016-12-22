@@ -46,17 +46,32 @@ void uiStep(void) {
   delay(10);
 }
 
-void drawHeader(void) {
-  u8g.setFont(u8g_font_unifont);
-  u8g.drawStr((u8g.getWidth() - u8g.getStrWidth("F1Robot")) / 2, 10, "F1Robot");
-}
-
 #define MENU_ITEMS 4
-const char *menu_strings[MENU_ITEMS] = { "Start", "Calibration", "PID", "Speed" };
+#define PAGES 5
+const char *titles[PAGES] = {
+  "F1Robot",
+  "Start",
+  "Calibration",
+  "PID",
+  "Speed"
+};
+const char *menu_strings[PAGES][MENU_ITEMS] = {
+  { "Start", "Calibration", "PID", "Speed" },
+  { "Started", "", "", "" },
+  { "Calibrating...", "", "", "" },
+  { "My PID is", "", "", "" },
+  { "My speed is", "", "", "" } };
+uint8_t page_current = 0;
 uint8_t menu_current = 0;
 uint8_t menu_redraw_required = 0;
 uint8_t last_key_code = KEY_NONE;
 
+
+void drawHeader(void) {
+  u8g.setFont(u8g_font_unifont);
+  u8g.setDefaultForegroundColor();
+  u8g.drawStr((u8g.getWidth() - u8g.getStrWidth(titles[page_current])) / 2, 10, titles[page_current]);
+}
 
 void drawMenu(void) {
   uint8_t i, h;
@@ -68,13 +83,13 @@ void drawMenu(void) {
   h = u8g.getFontAscent() - u8g.getFontDescent();
   w = u8g.getWidth();
   for ( i = 0; i < MENU_ITEMS; i++ ) {
-    d = (w - u8g.getStrWidth(menu_strings[i])) / 2;
+    d = (w - u8g.getStrWidth(menu_strings[page_current][i])) / 2;
     u8g.setDefaultForegroundColor();
     if ( i == menu_current ) {
       u8g.drawBox(0, 15 + (i * h + 1), w, h);
       u8g.setDefaultBackgroundColor();
     }
-    u8g.drawStr(d, 15 + (i * h), menu_strings[i]);
+    u8g.drawStr(d, 15 + (i * h), menu_strings[page_current][i]);
   }
 }
 
@@ -88,13 +103,25 @@ void updateMenu(void) {
     case KEY_NEXT:
       menu_current++;
       if ( menu_current >= MENU_ITEMS )
-        menu_current = 0;
+        menu_current = MENU_ITEMS-1;
+      if ( strlen(menu_strings[page_current][menu_current]) == 0 )
+        menu_current--;
       menu_redraw_required = 1;
       break;
     case KEY_PREV:
-      if ( menu_current == 0 )
-        menu_current = MENU_ITEMS;
-      menu_current--;
+      if ( menu_current > 0 )
+        menu_current--;
+      menu_redraw_required = 1;
+      break;
+    case KEY_SELECT:
+      if ( page_current == 0 )
+        page_current = menu_current + 1;
+      menu_current = 0;
+      menu_redraw_required = 1;
+      break;
+    case KEY_BACK:
+      menu_current = page_current - 1;
+      page_current = 0;
       menu_redraw_required = 1;
       break;
   }
@@ -114,6 +141,7 @@ void loop() {
     do  {
       drawHeader();
       drawMenu();
+      drawHeader();
     } while ( u8g.nextPage() );
     menu_redraw_required = 0;
   }
