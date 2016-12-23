@@ -5,8 +5,8 @@
 // The OLED Display
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0 | U8G_I2C_OPT_NO_ACK | U8G_I2C_OPT_FAST); // Fast I2C / TWI
 
-#define MAX_SPEED 180
-#define BASE_SPEED 130
+int maxSpeed = 180;
+int baseSpeed = 130;
 
 //Kp 1
 //Kd 17
@@ -14,12 +14,12 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0 | U8G_I2C_OPT_NO_ACK | U8G_I2C_OPT_F
 //200 base
 int Kp = 1;  // experiment to determine this, start by something small that just makes your bot follow the line at a slow speed
 int Kd = 17;  // experiment to determine this, slowly increase the speeds and adjust this value. ( Note: Kp < Kd) 
-int rightMaxSpeed = MAX_SPEED ; // max speed of the robot
-int leftMaxSpeed = MAX_SPEED;  // max speed of the robot
-int rightBaseSpeed = BASE_SPEED;  // this is the speed at which the motors should spin when the robot is perfectly on the line
-int leftBaseSpeed = BASE_SPEED;  // this is the speed at which the motors should spin when the robot is perfectly on the line
+int rightMaxSpeed = maxSpeed; // max speed of the robot
+int leftMaxSpeed = maxSpeed;  // max speed of the robot
+int rightBaseSpeed = baseSpeed;  // this is the speed at which the motors should spin when the robot is perfectly on the line
+int leftBaseSpeed = baseSpeed;  // this is the speed at which the motors should spin when the robot is perfectly on the line
 
-int parameters[] = { Kp, Kd, 0, 0 };
+int parameters[] = { Kp, Kd, maxSpeed, baseSpeed };
 
 #define NUM_SENSORS       6  // number of sensors used
 #define TIMEOUT         2500 // waits for 2500 us for sensor outputs to go low
@@ -71,15 +71,15 @@ const char *titles[PAGES] = {
 #define CALIBRATING "Calibrating..."
 #define KP "Kp = "
 #define KD "Kd = "
-#define LSPEED "LSpeed = "
-#define RSPEED "RSpeed = "
+#define MAX_SPEED "Max Speed = "
+#define BASE_SPEED "Base Speed = "
 
 const char *menu_strings[PAGES][MENU_ITEMS] = {
   { "Start", "Calibration", "PID", "Speed" },
   { "Started", "", "", "" },
   { CALIBRATING, "", "", "" },
   { KP, KD, "", "" },
-  { LSPEED, RSPEED, "", "" } };
+  { MAX_SPEED, BASE_SPEED, "", "" } };
 uint8_t page_current = 0;
 uint8_t menu_current = 0;
 uint8_t menu_redraw_required = 0;
@@ -131,10 +131,10 @@ void setup()
     Kp = parameters[0];
   if (parameters[1] > 0)
     Kd = parameters[1];
-  if (parameters[2] > 0)
-    leftMotorSpeed = parameters[2];
-  if (parameters[3] > 0)
-    rightMotorSpeed = parameters[3];
+  if (parameters[2] >= 0)
+    maxSpeed = parameters[2];
+  if (parameters[3] >= 0)
+    baseSpeed = parameters[3];
 
   // rotate screen, if required
   //u8g.setRot180();
@@ -204,13 +204,13 @@ void drawMenu(void) {
       menu_item = strcat(drawMenuPlaceholder, drawMenuNumberPlaceholder);
       param = true;
     }
-    else if (strcmp(menu_item, LSPEED) == 0) {
+    else if (strcmp(menu_item, MAX_SPEED) == 0) {
       sprintf(drawMenuNumberPlaceholder, "%d", leftMotorSpeed);
       strcpy(drawMenuPlaceholder, menu_item);
       menu_item = strcat(drawMenuPlaceholder, drawMenuNumberPlaceholder);
       param = true;
     }
-    else if (strcmp(menu_item, RSPEED) == 0) {
+    else if (strcmp(menu_item, BASE_SPEED) == 0) {
       sprintf(drawMenuNumberPlaceholder, "%d", rightMotorSpeed);
       strcpy(drawMenuPlaceholder, menu_item);
       menu_item = strcat(drawMenuPlaceholder, drawMenuNumberPlaceholder);
@@ -309,11 +309,11 @@ void updateMenu(void) {
       break;
     case KEY_BACK:
       if ( writeMode ) {
-        // Store Kd, Kp, LSpeed and RSpeed in EEPROM
+        // Store Kd, Kp, maxSpeed and baseSpeed in EEPROM
         parameters[0] = Kp;
         parameters[1] = Kd;
-        parameters[2] = leftMotorSpeed;
-        parameters[3] = rightMotorSpeed;
+        parameters[2] = maxSpeed;
+        parameters[3] = baseSpeed;
         eeprom_write_block((void*)&parameters, (void*)0, sizeof(parameters));
 
         writeMode = false;
