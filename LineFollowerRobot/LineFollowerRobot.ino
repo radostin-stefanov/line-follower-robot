@@ -1,4 +1,4 @@
-//#include <QTRSensors.h>
+#include <QTRSensors.h>
 #include "U8glib.h"
 #include <avr/eeprom.h>
 
@@ -54,7 +54,7 @@ int rightMotorSpeed = 0;
 
 bool doneCalibrating = false;
 
-//QTRSensorsRC qtrrc((unsigned char[]) {A1, A2, A3, A4, A5, 6} , NUM_SENSORS, TIMEOUT, EMITTER_PIN);
+QTRSensorsRC qtrrc((unsigned char[]) {A1, A2, A3, A4, A5, 6} , NUM_SENSORS, TIMEOUT, EMITTER_PIN);
 
 unsigned int sensorValues[NUM_SENSORS];
 
@@ -86,6 +86,35 @@ uint8_t menu_redraw_required = 0;
 uint8_t last_key_code = KEY_NONE;
 
 
+void uiSetup(void) {
+  pinMode(uiKeyPrev, INPUT_PULLUP);           // set pin to input with pullup
+  pinMode(uiKeyNext, INPUT_PULLUP);           // set pin to input with pullup
+  pinMode(uiKeySelect, INPUT_PULLUP);         // set pin to input with pullup
+  pinMode(uiKeyBack, INPUT_PULLUP);           // set pin to input with pullup
+}
+
+void wait() {
+  digitalWrite(motorPower, LOW);
+}
+
+void calibrate()
+{
+  for (int i = 0; i < 100; i++) { // calibrate for sometime by sliding the sensors across the line, or you may use auto-calibration instead
+    qtrrc.calibrate();
+   delay(20);
+  }
+  wait();
+  delay(2000); // wait for 2s to position the bot before entering the main loop
+
+  for (int i = 0; i < NUM_SENSORS; i++){
+    qtrrc.calibratedMinimumOn[i];
+  }
+
+  for (int i = 0; i < NUM_SENSORS; i++){
+    qtrrc.calibratedMaximumOn[i];
+  }
+}
+
 void setup()
 {
   pinMode(rightMotor1, OUTPUT);
@@ -95,27 +124,6 @@ void setup()
   pinMode(leftMotor2, OUTPUT);
   pinMode(leftMotorPWM, OUTPUT);
   pinMode(motorPower, OUTPUT);
-
-  for (int i = 0; i < 100; i++){ // calibrate for sometime by sliding the sensors across the line, or you may use auto-calibration instead
-//  qtrrc.calibrate();
-  delay(20);
-  }
-  wait();
-  delay(2000); // wait for 2s to position the bot before entering the main loop
-
-  //  // comment out for serial printing
-  Serial.begin(9600);
-  for (int i = 0; i < NUM_SENSORS; i++){
-//    Serial.print(qtrrc.calibratedMinimumOn[i]);
-    Serial.print(' ');
-  }
-  Serial.println();
-
-  for (int i = 0; i < NUM_SENSORS; i++){
-//    Serial.print(qtrrc.calibratedMaximumOn[i]);
-    Serial.print(' ');
-  }
-  Serial.println();
 
   // Read Kd, Kp, LSpeed and RSpeed from EEPROM
   eeprom_read_block((void*)&parameters, (void*)0, sizeof(parameters));
@@ -133,13 +141,6 @@ void setup()
   uiSetup();                    // setup key detection and debounce algorithm
   menu_redraw_required = 1;     // force initial redraw
   u8g.setHiColorByRGB(255,255,255);
-}
-
-void uiSetup(void) {
-  pinMode(uiKeyPrev, INPUT_PULLUP);           // set pin to input with pullup
-  pinMode(uiKeyNext, INPUT_PULLUP);           // set pin to input with pullup
-  pinMode(uiKeySelect, INPUT_PULLUP);         // set pin to input with pullup
-  pinMode(uiKeyBack, INPUT_PULLUP);           // set pin to input with pullup
 }
 
 void uiStep(void) {
@@ -371,6 +372,3 @@ void loop()
   updateMenu();                            // update menu bar
 }
 
-void wait() {
-  digitalWrite(motorPower, LOW);
-}
