@@ -205,13 +205,13 @@ void drawMenu(void) {
       param = true;
     }
     else if (strcmp(menu_item, MAX_SPEED) == 0) {
-      sprintf(drawMenuNumberPlaceholder, "%d", leftMotorSpeed);
+      sprintf(drawMenuNumberPlaceholder, "%d", maxSpeed);
       strcpy(drawMenuPlaceholder, menu_item);
       menu_item = strcat(drawMenuPlaceholder, drawMenuNumberPlaceholder);
       param = true;
     }
     else if (strcmp(menu_item, BASE_SPEED) == 0) {
-      sprintf(drawMenuNumberPlaceholder, "%d", rightMotorSpeed);
+      sprintf(drawMenuNumberPlaceholder, "%d", baseSpeed);
       strcpy(drawMenuPlaceholder, menu_item);
       menu_item = strcat(drawMenuPlaceholder, drawMenuNumberPlaceholder);
       param = true;
@@ -249,15 +249,15 @@ void updateMenu(void) {
           if (Kd < 1)
             Kd = 1;
         }
-        else if ( page_current == 4 && menu_current == 0) { // LSpeed
-          leftMotorSpeed--;
-          if (leftMotorSpeed < 0)
-            leftMotorSpeed = 0;
+        else if ( page_current == 4 && menu_current == 0) { // maxSpeed
+          maxSpeed--;
+          if (maxSpeed < 0)
+            maxSpeed = 0;
         }
-        else if ( page_current == 4 && menu_current == 1) { // RSpeed
-          rightMotorSpeed--;
-          if (rightMotorSpeed < 0)
-            rightMotorSpeed = 0;
+        else if ( page_current == 4 && menu_current == 1) { // baseSpeed
+          baseSpeed--;
+          if (baseSpeed < 0)
+            baseSpeed = 0;
         }
         menu_redraw_required = 1;
       }
@@ -278,15 +278,11 @@ void updateMenu(void) {
         else if ( page_current == 3 && menu_current == 1) { // Kd
           Kd++;
         }
-        else if ( page_current == 4 && menu_current == 0) { // LSpeed
-          leftMotorSpeed++;
-          if (leftMotorSpeed >= leftMaxSpeed)
-            leftMotorSpeed = leftMaxSpeed;
+        else if ( page_current == 4 && menu_current == 0) { // maxSpeed
+          maxSpeed++;
         }
-        else if ( page_current == 4 && menu_current == 1) { // RSpeed
-          rightMotorSpeed++;
-          if (rightMotorSpeed >= rightMaxSpeed)
-            rightMotorSpeed = rightMaxSpeed;
+        else if ( page_current == 4 && menu_current == 1) { // baseSpeed
+          baseSpeed++;
         }
         menu_redraw_required = 1;
       }
@@ -309,7 +305,7 @@ void updateMenu(void) {
       break;
     case KEY_BACK:
       if ( writeMode ) {
-        // Store Kd, Kp, maxSpeed and baseSpeed in EEPROM
+        // Store Kp, Kd, maxSpeed and baseSpeed in EEPROM
         parameters[0] = Kp;
         parameters[1] = Kd;
         parameters[2] = maxSpeed;
@@ -331,7 +327,6 @@ void updateMenu(void) {
 
 void loop()
 {
-// !!!!!!!! QTRSensors.h is missing !!!!!!!!
 //  unsigned int sensors[6];
 //  int position = qtrrc.readLine(sensors); // get calibrated readings along with the line position, refer to the QTR Sensors Arduino Library for more details on line position.
 //
