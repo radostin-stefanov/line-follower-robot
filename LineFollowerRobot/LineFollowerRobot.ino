@@ -13,7 +13,7 @@ int baseSpeed = 130;
 //250 max
 //200 base
 int Kp = 1;  // experiment to determine this, start by something small that just makes your bot follow the line at a slow speed
-int Kd = 17;  // experiment to determine this, slowly increase the speeds and adjust this value. ( Note: Kp < Kd) 
+int Kd = 17;  // experiment to determine this, slowly increase the speeds and adjust this value. ( Note: Kp < Kd)
 int rightMaxSpeed = maxSpeed; // max speed of the robot
 int leftMaxSpeed = maxSpeed;  // max speed of the robot
 int rightBaseSpeed = baseSpeed;  // this is the speed at which the motors should spin when the robot is perfectly on the line
@@ -39,10 +39,10 @@ int parameters[] = { Kp, Kd, maxSpeed, baseSpeed };
 #define KEY_SELECT 3
 #define KEY_BACK 4
 
-uint8_t uiKeyPrev = 3;
-uint8_t uiKeyNext = 12;
-uint8_t uiKeySelect = 4;
-uint8_t uiKeyBack = 2;
+uint8_t uiKeyPrev = 6;
+uint8_t uiKeyNext = 13;
+uint8_t uiKeySelect = 7;
+uint8_t uiKeyBack = 9;
 
 uint8_t uiKeyCodeFirst = KEY_NONE;
 uint8_t uiKeyCodeSecond = KEY_NONE;
@@ -54,7 +54,9 @@ int rightMotorSpeed = 0;
 
 bool doneCalibrating = false;
 
-QTRSensorsRC qtrrc((unsigned char[]) {A1, A2, A3, A4, A5, 6} , NUM_SENSORS, TIMEOUT, EMITTER_PIN);
+QTRSensorsRC qtrrc((unsigned char[]) {
+  A1, A2, A3, A6, A7, A0
+} , NUM_SENSORS, TIMEOUT, EMITTER_PIN);
 
 unsigned int sensorValues[NUM_SENSORS];
 
@@ -79,7 +81,8 @@ const char *menu_strings[PAGES][MENU_ITEMS] = {
   { "Started", "", "", "" },
   { CALIBRATING, "", "", "" },
   { KP, KD, "", "" },
-  { MAX_SPEED, BASE_SPEED, "", "" } };
+  { MAX_SPEED, BASE_SPEED, "", "" }
+};
 uint8_t page_current = 0;
 uint8_t menu_current = 0;
 uint8_t menu_redraw_required = 0;
@@ -97,26 +100,60 @@ void wait() {
   digitalWrite(motorPower, LOW);
 }
 
-void calibrate()
-{
-  for (int i = 0; i < 100; i++) { // calibrate for sometime by sliding the sensors across the line, or you may use auto-calibration instead
-    qtrrc.calibrate();
-   delay(20);
-  }
-  wait();
-  delay(2000); // wait for 2s to position the bot before entering the main loop
-
-  for (int i = 0; i < NUM_SENSORS; i++){
-    qtrrc.calibratedMinimumOn[i];
-  }
-
-  for (int i = 0; i < NUM_SENSORS; i++){
-    qtrrc.calibratedMaximumOn[i];
-  }
+void turnRight() {
+  digitalWrite(motorPower, HIGH);
+  digitalWrite(rightMotor1, HIGH);
+  digitalWrite(rightMotor2, LOW);
+  analogWrite(rightMotorPWM, 20);
 }
 
-void setup()
-{
+void turnBackRight() {
+  digitalWrite(motorPower, HIGH);
+  digitalWrite(rightMotor1, LOW);
+  digitalWrite(rightMotor2, HIGH);
+  analogWrite(rightMotorPWM, 20);
+}
+
+void turnLeft() {
+  digitalWrite(motorPower, HIGH);
+  digitalWrite(leftMotor1, HIGH);
+  digitalWrite(leftMotor2, LOW);
+  analogWrite(leftMotorPWM, 20);
+}
+
+void turnBackLeft() {
+  digitalWrite(motorPower, HIGH);
+  digitalWrite(leftMotor1, LOW);
+  digitalWrite(leftMotor2, HIGH);
+  analogWrite(leftMotorPWM, 20);
+}
+
+void calibrate() {
+  for (int i = 0; i < 100; i++) { // calibrate for sometime by sliding the sensors across the line, or you may use auto-calibration instead
+    if (i < 50) {
+      if (i < 25) {
+        turnRight();
+      } else {
+        turnBackRight();
+      }
+      analogWrite(leftMotorPWM, 0);
+    } else {
+      if (i < 75) {
+        turnLeft();
+      } else {
+        turnBackLeft();
+      }
+      analogWrite(rightMotorPWM, 0);
+    }
+    qtrrc.calibrate();
+    delay(20);
+  }
+  wait();
+  doneCalibrating = true;
+  updateMenu();
+}
+
+void setup() {
   pinMode(rightMotor1, OUTPUT);
   pinMode(rightMotor2, OUTPUT);
   pinMode(rightMotorPWM, OUTPUT);
@@ -140,7 +177,9 @@ void setup()
   //u8g.setRot180();
   uiSetup();                    // setup key detection and debounce algorithm
   menu_redraw_required = 1;     // force initial redraw
-  u8g.setHiColorByRGB(255,255,255);
+  u8g.setHiColorByRGB(255, 255, 255);
+
+  calibrate();
 }
 
 void uiStep(void) {
@@ -264,7 +303,7 @@ void updateMenu(void) {
       else {
         menu_current++;
         if ( menu_current >= MENU_ITEMS )
-          menu_current = MENU_ITEMS-1;
+          menu_current = MENU_ITEMS - 1;
         if ( strlen(menu_strings[page_current][menu_current]) == 0 )
           menu_current--;
         menu_redraw_required = 1;
@@ -325,35 +364,7 @@ void updateMenu(void) {
   }
 }
 
-void loop()
-{
-//  unsigned int sensors[6];
-//  int position = qtrrc.readLine(sensors); // get calibrated readings along with the line position, refer to the QTR Sensors Arduino Library for more details on line position.
-//
-//  int error = 2500 - position; 
-//
-//  int motorSpeed = Kp * error + Kd * (error - lastError);
-//  lastError = error;
-//
-//  rightMotorSpeed = rightBaseSpeed + motorSpeed;
-//  leftMotorSpeed = leftBaseSpeed - motorSpeed;
-//
-//  if (rightMotorSpeed > rightMaxSpeed ) rightMotorSpeed = rightMaxSpeed; // prevent the motor from going beyond max speed
-//  if (leftMotorSpeed > leftMaxSpeed ) leftMotorSpeed = leftMaxSpeed; // prevent the motor from going beyond max speed
-//  if (rightMotorSpeed < 0) rightMotorSpeed = 0; // keep the motor speed positive
-//  if (leftMotorSpeed < 0) leftMotorSpeed = 0; // keep the motor speed positive
-//
-//  {
-//    digitalWrite(motorPower, HIGH); // move forward with appropriate speeds
-//    digitalWrite(rightMotor1, HIGH);
-//    digitalWrite(rightMotor2, LOW);
-//    analogWrite(rightMotorPWM, rightMotorSpeed);
-//    digitalWrite(motorPower, HIGH);
-//    digitalWrite(leftMotor1, HIGH);
-//    digitalWrite(leftMotor2, LOW);
-//    analogWrite(leftMotorPWM, leftMotorSpeed);
-//  }
-
+void loop() {
   uiStep();                     // check for key press
   if (  menu_redraw_required != 0 ) {
     u8g.firstPage();
