@@ -75,10 +75,11 @@ const char *titles[PAGES] = {
 #define KD "Kd = "
 #define MAX_SPEED "Max Speed = "
 #define BASE_SPEED "Base Speed = "
+#define STARTED "Started"
 
 const char *menu_strings[PAGES][MENU_ITEMS] = {
   { "Start", "Calibration", "PID", "Speed" },
-  { "Started", "", "", "" },
+  { STARTED, "", "", "" },
   { CALIBRATING, "", "", "" },
   { KP, KD, "", "" },
   { MAX_SPEED, BASE_SPEED, "", "" }
@@ -128,7 +129,7 @@ void turnBackLeft() {
   analogWrite(leftMotorPWM, 20);
 }
 
-void calibrate() {
+void calibration() {
   for (int i = 0; i < 100; i++) { // calibrate for sometime by sliding the sensors across the line, or you may use auto-calibration instead
     if (i < 50) {
       if (i < 25) {
@@ -150,7 +151,7 @@ void calibrate() {
   }
   wait();
   doneCalibrating = true;
-  updateMenu();
+  menu_redraw_required = 1;
 }
 
 void setup() {
@@ -178,8 +179,6 @@ void setup() {
   uiSetup();                    // setup key detection and debounce algorithm
   menu_redraw_required = 1;     // force initial redraw
   u8g.setHiColorByRGB(255, 255, 255);
-
-  calibrate();
 }
 
 void uiStep(void) {
@@ -213,6 +212,11 @@ char drawMenuPlaceholder[32]; // 32 chars is more than enough.
 char drawMenuNumberPlaceholder[16]; // Here numbers are prepared.
 bool writeMode = false;
 bool parameter = false;
+bool bCalibrate = false;
+
+void start() {
+  // Here we go.
+}
 
 void drawMenu(void) {
   uint8_t i, h;
@@ -223,10 +227,14 @@ void drawMenu(void) {
 
   h = u8g.getFontAscent() - u8g.getFontDescent();
   w = u8g.getWidth();
+  bool started = false;
+  bCalibrate = false;
+
   for ( i = 0; i < MENU_ITEMS; i++ ) {
     const char* menu_item = menu_strings[page_current][i];
     bool param = false;
     if (strcmp(menu_item, CALIBRATING) == 0) {
+      bCalibrate = true;
       if (doneCalibrating) {
         menu_item = "Done.";
       }
@@ -255,6 +263,9 @@ void drawMenu(void) {
       menu_item = strcat(drawMenuPlaceholder, drawMenuNumberPlaceholder);
       param = true;
     }
+    else if (strcmp(menu_item, STARTED) == 0) {
+      started = true;
+    }
     d = (w - u8g.getStrWidth(menu_item)) / 2;
     u8g.setDefaultForegroundColor();
     if ( i == menu_current ) {
@@ -267,6 +278,9 @@ void drawMenu(void) {
       u8g.drawStr(d + 1, 15 + (i * h), menu_item);
     }
   }
+
+  if (started)
+    start();
 }
 
 void updateMenu(void) {
@@ -336,8 +350,7 @@ void updateMenu(void) {
         menu_current = 0;
         menu_redraw_required = 1;
         writeMode = false;
-      }
-      else {
+      } else {
         writeMode = parameter;
         menu_redraw_required = 1;
       }
@@ -353,12 +366,12 @@ void updateMenu(void) {
 
         writeMode = false;
         menu_redraw_required = 1;
-      }
-      else if (page_current > 0) {
+      } else if ( page_current > 0 ) {
         menu_current = page_current - 1;
         page_current = 0;
         menu_redraw_required = 1;
         writeMode = false;
+        doneCalibrating = false;
       }
       break;
   }
@@ -374,7 +387,11 @@ void loop() {
       drawHeader();
     } while ( u8g.nextPage() );
     menu_redraw_required = 0;
+    if (bCalibrate && !doneCalibrating) {
+      calibration();
+    }
   }
+
   updateMenu();                            // update menu bar
 }
 
