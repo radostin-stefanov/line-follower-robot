@@ -2,6 +2,17 @@
 #include "U8glib.h"
 #include <avr/eeprom.h>
 
+// Comment the following line out when done debugging.
+//#define DEBUG
+
+// Use LOG("abc") to output "abc" on the Serial interface if DEBUG is enabled.
+// If DEBUG is disabled then LOG("abc") has no effect.
+#ifdef DEBUG
+#define LOG(X) Serial.println(X)
+#else
+#define LOG(X)
+#endif
+
 // The OLED Display
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0 | U8G_I2C_OPT_NO_ACK | U8G_I2C_OPT_FAST); // Fast I2C / TWI
 
@@ -97,8 +108,14 @@ void uiSetup(void) {
   pinMode(uiKeyBack, INPUT_PULLUP);           // set pin to input with pullup
 }
 
-void wait() {
+void stopMotor() {
+  digitalWrite(leftMotor1, LOW);
+  digitalWrite(leftMotor2, LOW);
+  digitalWrite(rightMotor1, LOW);
+  digitalWrite(rightMotor2, LOW);
   digitalWrite(motorPower, LOW);
+  analogWrite(leftMotorPWM, 0);
+  analogWrite(rightMotorPWM, 0);
 }
 
 void turnRight() {
@@ -149,12 +166,16 @@ void calibration() {
     qtrrc.calibrate();
     delay(20);
   }
-  wait();
+  stopMotor();
   doneCalibrating = true;
   menu_redraw_required = 1;
 }
 
 void setup() {
+#ifdef DEBUG
+  Serial.begin(9600);
+#endif
+  
   pinMode(rightMotor1, OUTPUT);
   pinMode(rightMotor2, OUTPUT);
   pinMode(rightMotorPWM, OUTPUT);
@@ -212,10 +233,38 @@ char drawMenuPlaceholder[32]; // 32 chars is more than enough.
 char drawMenuNumberPlaceholder[16]; // Here numbers are prepared.
 bool writeMode = false;
 bool parameter = false;
-bool bCalibrate = false;
+bool calibrate = false;
+bool started   = false;
 
-void start() {
+void run() {
   // Here we go.
+  LOG("Go");
+  unsigned int sensors[6];
+  int position = qtrrc.readLine(sensors); // get calibrated readings along with the line position, refer to the QTR Sensors Arduino Library for more details on line position.
+
+  int error = 2500 - position; 
+
+  int motorSpeed = Kp * error + Kd * (error - lastError);
+  lastError = error;
+
+  rightMotorSpeed = rightBaseSpeed + motorSpeed;
+  leftMotorSpeed = leftBaseSpeed - motorSpeed;
+
+  if (rightMotorSpeed > rightMaxSpeed ) rightMotorSpeed = rightMaxSpeed; // prevent the motor from going beyond max speed
+  if (leftMotorSpeed > leftMaxSpeed ) leftMotorSpeed = leftMaxSpeed; // prevent the motor from going beyond max speed
+  if (rightMotorSpeed < 0) rightMotorSpeed = 0; // keep the motor speed positive
+  if (leftMotorSpeed < 0) leftMotorSpeed = 0; // keep the motor speed positive
+
+  {
+    digitalWrite(motorPower, HIGH); // move forward with appropriate speeds
+    digitalWrite(rightMotor1, HIGH);
+    digitalWrite(rightMotor2, LOW);
+    analogWrite(rightMotorPWM, rightMotorSpeed);
+    digitalWrite(motorPower, HIGH);
+    digitalWrite(leftMotor1, HIGH);
+    digitalWrite(leftMotor2, LOW);
+    analogWrite(leftMotorPWM, leftMotorSpeed);
+  }
 }
 
 void drawMenu(void) {
@@ -227,14 +276,14 @@ void drawMenu(void) {
 
   h = u8g.getFontAscent() - u8g.getFontDescent();
   w = u8g.getWidth();
-  bool started = false;
-  bCalibrate = false;
+  started = false;
+  calibrate = false;
 
   for ( i = 0; i < MENU_ITEMS; i++ ) {
     const char* menu_item = menu_strings[page_current][i];
     bool param = false;
     if (strcmp(menu_item, CALIBRATING) == 0) {
-      bCalibrate = true;
+      calibrate = true;
       if (doneCalibrating) {
         menu_item = "Done.";
       }
@@ -279,8 +328,6 @@ void drawMenu(void) {
     }
   }
 
-  if (started)
-    start();
 }
 
 void updateMenu(void) {
@@ -372,12 +419,15 @@ void updateMenu(void) {
         menu_redraw_required = 1;
         writeMode = false;
         doneCalibrating = false;
+        stopMotor();
       }
       break;
   }
 }
 
 void loop() {
+  LOG("Loop");
+
   uiStep();                     // check for key press
   if (  menu_redraw_required != 0 ) {
     u8g.firstPage();
@@ -387,11 +437,15 @@ void loop() {
       drawHeader();
     } while ( u8g.nextPage() );
     menu_redraw_required = 0;
-    if (bCalibrate && !doneCalibrating) {
+    if (calibrate && !doneCalibrating) {
       calibration();
     }
   }
 
-  updateMenu();                            // update menu bar
+  updateMenu();                 // update menu bar
+  
+  if (started) {
+    run();
+  }
 }
 
