@@ -25,11 +25,6 @@ int baseSpeed = 130;
 //200 base
 int Kp = 1;  // experiment to determine this, start by something small that just makes your bot follow the line at a slow speed
 int Kd = 17;  // experiment to determine this, slowly increase the speeds and adjust this value. ( Note: Kp < Kd)
-int rightMaxSpeed = maxSpeed; // max speed of the robot
-int leftMaxSpeed = maxSpeed;  // max speed of the robot
-int rightBaseSpeed = baseSpeed;  // this is the speed at which the motors should spin when the robot is perfectly on the line
-int leftBaseSpeed = baseSpeed;  // this is the speed at which the motors should spin when the robot is perfectly on the line
-
 int parameters[] = { Kp, Kd, maxSpeed, baseSpeed };
 
 #define NUM_SENSORS       6  // number of sensors used
@@ -116,6 +111,8 @@ void stopMotor() {
   digitalWrite(motorPower, LOW);
   analogWrite(leftMotorPWM, 0);
   analogWrite(rightMotorPWM, 0);
+  leftMotorSpeed = 0;
+  rightMotorSpeed = 0;
 }
 
 void turnRight() {
@@ -247,11 +244,11 @@ void run() {
   int motorSpeed = Kp * error + Kd * (error - lastError);
   lastError = error;
 
-  rightMotorSpeed = rightBaseSpeed + motorSpeed;
-  leftMotorSpeed = leftBaseSpeed - motorSpeed;
+  rightMotorSpeed = baseSpeed + motorSpeed;
+  leftMotorSpeed = baseSpeed - motorSpeed;
 
-  if (rightMotorSpeed > rightMaxSpeed ) rightMotorSpeed = rightMaxSpeed; // prevent the motor from going beyond max speed
-  if (leftMotorSpeed > leftMaxSpeed ) leftMotorSpeed = leftMaxSpeed; // prevent the motor from going beyond max speed
+  if (rightMotorSpeed > maxSpeed ) rightMotorSpeed = maxSpeed; // prevent the motor from going beyond max speed
+  if (leftMotorSpeed > maxSpeed ) leftMotorSpeed = maxSpeed; // prevent the motor from going beyond max speed
   if (rightMotorSpeed < 0) rightMotorSpeed = 0; // keep the motor speed positive
   if (leftMotorSpeed < 0) leftMotorSpeed = 0; // keep the motor speed positive
 
@@ -419,6 +416,7 @@ void updateMenu(void) {
         menu_redraw_required = 1;
         writeMode = false;
         doneCalibrating = false;
+        started = false;
         stopMotor();
       }
       break;
